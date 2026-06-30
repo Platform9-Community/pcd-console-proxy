@@ -8,6 +8,8 @@ build/packer/files/ovmf-vars.fd
 build/packer/files/cloud-seed.iso
 cloud-init-dev.yaml
 start.sh
+AGENT.md
+CLAUDE.md
 app_creds
 cloud-init-min.yaml
 notes
