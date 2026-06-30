@@ -1,0 +1,88 @@
+#cloud-config
+
+# 1. Update repositories and install Nginx and SSH
+package_update: true
+package_upgrade: true
+
+packages:
+  - nginx
+  - openssh
+  - openssl
+  - curl
+
+# 2. Set the root password
+chpasswd:
+  list: |
+    root:YourSecurePasswordHere
+  expire: false
+
+# 3. Write configuration files
+write_files:
+  - path: /root/.cloudns.env
+    permissions: '0600'
+    owner: root:root
+    content: |
+      CLOUDNS_AUTH_ID=REPLACE_WITH_AUTH_ID
+      CLOUDNS_AUTH_PASSWORD=REPLACE_WITH_API_PASSWORD
+      ACME_DOMAIN=REPLACE_WITH_DOMAIN
+      ACME_EMAIL=REPLACE_WITH_EMAIL
+
+  - path: /etc/nginx/http.d/novnc-external-proxy.conf
+    permissions: '0644'
+    owner: root:root
+    content: |
+      server {
+          listen 6080 ssl;
+          server_name _;
+
+          ssl_certificate     /etc/nginx/ssl/server.crt;
+          ssl_certificate_key /etc/nginx/ssl/server.key;
+
+          location / {
+              # REPLACE WITH YOUR ACTUAL INTERNAL IP ADDRESS
+              proxy_pass https://10.0.0.11:6080;
+              proxy_ssl_verify off;
+
+              # Required for noVNC WebSockets
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection "Upgrade";
+
+              # Proxy headers
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+
+              # Prevent timeouts
+              proxy_read_timeout 3600s;
+              proxy_send_timeout 3600s;
+          }
+      }
+
+# 4. Enable and start Nginx, and configure SSH daemon
+runcmd:
+  # Remove the default Nginx config to avoid default root conflicts
+  - rm -f /etc/nginx/http.d/default.conf
+
+  # Issue Let's Encrypt cert via acme.sh + ClouDNS DNS-01
+  - mkdir -p /etc/nginx/ssl
+  - curl https://get.acme.sh | sh -s email=$(. /root/.cloudns.env && echo $ACME_EMAIL)
+  - |
+    . /root/.cloudns.env
+    export CLOUDNS_AUTH_ID CLOUDNS_AUTH_PASSWORD
+    /root/.acme.sh/acme.sh --issue --dns dns_cloudns -d "$ACME_DOMAIN"
+    /root/.acme.sh/acme.sh --install-cert -d "$ACME_DOMAIN" \
+      --key-file /etc/nginx/ssl/server.key \
+      --fullchain-file /etc/nginx/ssl/server.crt \
+      --reloadcmd "rc-service nginx reload"
+    sed -i "s/server_name _;/server_name $ACME_DOMAIN;/" /etc/nginx/http.d/novnc-external-proxy.conf
+  
+  # Configure SSH to allow root login with password
+  - sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+  - sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+  - rc-service sshd restart || rc-service openssh restart
+  
+  # Enable and start Nginx via OpenRC
+  - rc-update add nginx default
+  - rc-service nginx start

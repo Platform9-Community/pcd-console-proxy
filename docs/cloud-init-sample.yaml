@@ -1,0 +1,82 @@
+#cloud-config
+# pcd-console-proxy — deployment user-data template
+#
+# Inject this as Nova user-data when launching the pcd-console-proxy image.
+# All sections are optional; include only what you want pre-configured.
+# Omitted values must be set later via the root TUI (console login as root).
+#
+# PCD URL format:
+#   https://<infra>-<region>.app.staging-pcd.platform9.com/
+#
+#   infra   = your PCD deployment identifier   (e.g. acme-corp)
+#   region  = infra region name                (e.g. us-east)
+#   fq      = <infra>-<region>                 (e.g. acme-corp-us-east)
+#
+# Deploy with:
+#   openstack server create \
+#     --image pcd-console-<VERSION> \
+#     --flavor m1.small \
+#     --nic net-id=<network-id>,v4-fixed-ip=<ip> \
+#     --key-name <keypair> \
+#     --security-group <sg-id> \
+#     --user-data cloud-init-sample.yaml \
+#     pcd-console-proxy
+
+write_files:
+
+  # ── Proxy configuration ──────────────────────────────────────────────────
+  # Pre-populate state.conf. Include only the keys you want to pre-set;
+  # any omitted keys can be configured via the TUI after first boot.
+  - path: /etc/pcd-proxy/cloud-init.conf
+    permissions: '0600'
+    content: |
+      OS_AUTH_URL="https://<fq-region>.app.staging-pcd.platform9.com/keystone/v3"
+      ALLOWED_PROJECTS="<project-name>"    # comma-separated; empty = any valid project
+      DOMAIN="<console-proxy-fqdn>"        # FQDN for TLS cert and nginx server_name
+      CERT_EMAIL="<admin-email>"
+      CERT_METHOD="http01"                 # http01 | dns01
+
+  # ── Backend auto-discovery ───────────────────────────────────────────────
+  # Application credential with compute-admin role to query nova-novncproxy hosts.
+  #
+  # Create the credential (run once against your PCD environment):
+  #   source <pcdctl.rc>
+  #   openstack --insecure application credential create pcd-proxy-discover \
+  #     --role admin \
+  #     --description "noVNC backend auto-discovery for pcd-console-proxy"
+  #   # Copy the printed id and secret below.
+  #
+  - path: /etc/pcd-proxy/app-credential.env
+    permissions: '0600'
+    content: |
+      export OS_AUTH_TYPE=v3applicationcredential
+      export OS_AUTH_URL="https://<fq-region>.app.staging-pcd.platform9.com/keystone/v3"
+      export OS_REGION_NAME="<region>"
+      export OS_APPLICATION_CREDENTIAL_ID="<credential-id>"
+      export OS_APPLICATION_CREDENTIAL_SECRET="<credential-secret>"
+      export OS_INTERFACE=public
+
+  # ── DNS-01 credentials (optional — required when CERT_METHOD=dns01) ─────
+  # Uncomment and fill in for your DNS provider.
+  # The CERT_DNS_HOOK value must match the acme.sh hook name for your provider.
+  #
+  # - path: /etc/pcd-proxy/dns-credentials.conf
+  #   permissions: '0600'
+  #   content: |
+  #     # ClouDNS
+  #     export CLOUDNS_AUTH_ID="<sub-auth-id>"
+  #     export CLOUDNS_AUTH_PASSWORD="<api-password>"
+  #     export CERT_DNS_HOOK="dns_cloudns"
+  #
+  #     # Cloudflare (alternative)
+  #     # export CF_Token="<api-token>"
+  #     # export CERT_DNS_HOOK="dns_cf"
+  #
+  #     # Route53 / AWS (alternative)
+  #     # export AWS_ACCESS_KEY_ID="<key-id>"
+  #     # export AWS_SECRET_ACCESS_KEY="<secret>"
+  #     # export CERT_DNS_HOOK="dns_aws"
+  #
+  #     # DigitalOcean (alternative)
+  #     # export DO_API_KEY="<token>"
+  #     # export CERT_DNS_HOOK="dns_dgon"

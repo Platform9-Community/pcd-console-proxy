@@ -1,0 +1,13 @@
+build/output/
+build/packer/files/alpine-cloud.qcow2
+build/packer/files/pcd-auth
+build/packer/files/packer_key
+build/packer/files/packer_key.pub
+build/packer/http/packer_key.pub
+build/packer/files/ovmf-vars.fd
+build/packer/files/cloud-seed.iso
+cloud-init-dev.yaml
+app_creds
+cloud-init-min.yaml
+notes
+DESIGN.md

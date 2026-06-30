@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+
+name="pcd-auth"
+description="PCD Console Proxy Authentication Daemon"
+command="/usr/local/bin/pcd-auth"
+command_args="/etc/pcd-proxy/state.conf"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/pcd-auth.log"
+error_log="/var/log/pcd-auth.log"
+
+depend() {
+    need net local
+}
