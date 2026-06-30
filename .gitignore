@@ -10,6 +10,7 @@ cloud-init-dev.yaml
 start.sh
 AGENT.md
 CLAUDE.md
+manual_build/
 app_creds
 cloud-init-min.yaml
 notes

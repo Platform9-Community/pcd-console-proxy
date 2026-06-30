@@ -1,6 +1,0 @@
-Name: alpine-test-proxy
-IP: 10.0.0.254 (locallan)
-Image: alpine-3.24.1-x86_64-uefi-cloudinit-r0
-Flavor: m1.small (1 vCPU, 2GB RAM, 20GB disk)
-Keypair: jscott-sshkey
-Security group: any-any
